@@ -11,15 +11,18 @@
   "dependencies": {
     "fabric": "^6.9.0",
     "konva": "^10.0.12",
+    "lodash-es": "^4.17.21",
     "pixi.js": "^8.14.3",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
-    "react-router-dom": "^7.10.1"
+    "react-router-dom": "^7.10.1",
+    "typescript": "^5.9.3"
   },
   "devDependencies": {
     "@rsbuild/core": "^1.6.12",
     "@rsbuild/plugin-react": "^1.4.2",
     "@rsbuild/plugin-sass": "^1.4.0",
+    "@types/lodash-es": "^4.17.12",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "sass": "^1.94.2"
