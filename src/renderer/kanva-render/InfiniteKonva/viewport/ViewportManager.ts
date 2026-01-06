@@ -1,12 +1,9 @@
-// src/viewport/ViewportManager.ts
 import Konva from "konva";
 import {
   Vector2D,
   BoundingBox,
   Viewport,
   ViewportConfig,
-  ViewportAnimation,
-  InertiaState,
   ViewportEvent,
   ViewportEventHandler,
   ViewportStats,
@@ -15,23 +12,19 @@ import {
 /**
  * ViewportManager 的核心价值：
 
-统一管理：集中处理所有视口相关的状态和操作
+  统一管理：集中处理所有视口相关的状态和操作
 
-坐标转换：提供屏幕↔世界坐标的双向转换
+  坐标转换：提供屏幕↔世界坐标的双向转换
 
-动画系统：支持平滑的缩放和平移动画
+  事件系统：通知其他组件视口变化
 
-惯性滚动：实现自然的拖拽后惯性效果
+  性能优化：节流更新，避免过度渲染
 
-事件系统：通知其他组件视口变化
+  边界约束：支持视口边界限制
 
-性能优化：节流更新，避免过度渲染
+  统计信息：提供性能和使用统计
 
-边界约束：支持视口边界限制
-
-统计信息：提供性能和使用统计
-
-这样的设计使得 ViewportManager 成为无限画布架构中的核心协调者，所有需要感知视口的组件都可以通过它获取状态和接收通知。
+  这样的设计使得 ViewportManager 成为无限画布架构中的核心协调者，所有需要感知视口的组件都可以通过它获取状态和接收通知。
  */
 
 export class ViewportManager {
@@ -43,20 +36,7 @@ export class ViewportManager {
     screenY: 0,
   } as Viewport;
   private config: ViewportConfig;
-  private worldGroup: Konva.Group;
   private stage: Konva.Stage;
-
-  // 动画相关
-  private animation: ViewportAnimation | null = null;
-  private animationFrameId: number | null = null;
-
-  // 惯性滚动
-  private inertia: InertiaState = {
-    velocityX: 0,
-    velocityY: 0,
-    lastUpdateTime: 0,
-    isActive: false,
-  };
 
   // 事件系统
   private eventHandlers: Map<string, ViewportEventHandler[]> = new Map();
@@ -77,11 +57,10 @@ export class ViewportManager {
 
   constructor(
     stage: Konva.Stage,
-    worldGroup: Konva.Group,
+    // worldGroup: Konva.Group,
     config?: Partial<ViewportConfig>
   ) {
     this.stage = stage;
-    this.worldGroup = worldGroup;
 
     // 默认配置
     this.config = {
@@ -89,17 +68,6 @@ export class ViewportManager {
       maxZoom: 20,
       defaultZoom: 1,
       zoomStep: 0.2,
-      panSensitivity: 1,
-      animation: {
-        enabled: true,
-        duration: 300,
-        easing: "easeOutCubic",
-      },
-      inertia: {
-        enabled: true,
-        deceleration: 0.94,
-        maxSpeed: 50,
-      },
       constraints: {
         enabled: false,
       },
@@ -111,33 +79,29 @@ export class ViewportManager {
       ...config,
     };
 
-    // 初始化视口
-    this.viewport = this.createInitialViewport();
+    // 初始化视口 this.viewport
+    this.createInitialViewport();
 
     // 设置世界组
     this.setupWorldGroup();
 
     // 绑定事件
     this.bindEvents();
-
-    // 启动动画循环
-    this.startAnimationLoop();
   }
 
   /**
    * 创建初始视口状态
    */
-  private createInitialViewport(): Viewport {
-    return {
-      worldX: 0,
-      worldY: 0,
-      screenX: 0,
-      screenY: 0,
-      zoom: this.config.defaultZoom,
-      screenWidth: this.stage.width(),
-      screenHeight: this.stage.height(),
-      visibleBounds: this.calculateVisibleBounds(0, 0, this.config.defaultZoom),
-    };
+  private createInitialViewport() {
+    const scale = this.config.defaultZoom;
+    this.viewport.worldX = 0;
+    this.viewport.worldY = 0;
+    this.viewport.screenX = 0;
+    this.viewport.screenY = 0;
+    this.viewport.zoom = scale;
+    this.viewport.screenWidth = this.stage.width();
+    this.viewport.screenHeight = this.stage.height();
+    this.viewport.visibleBounds = this.calculateVisibleBounds(scale);
   }
 
   /**
@@ -145,23 +109,27 @@ export class ViewportManager {
    */
   private setupWorldGroup(): void {
     // 设置初始位置和缩放
-    this.worldGroup.position({ x: 0, y: 0 });
-    this.worldGroup.scale({ x: this.viewport.zoom, y: this.viewport.zoom });
+    this.stage.position({ x: 0, y: 0 });
+    this.stage.scale({ x: this.viewport.zoom, y: this.viewport.zoom });
 
     // 启用拖拽（用于平移画布）
-    this.worldGroup.draggable(true);
+    this.stage.draggable(true);
 
     // 监听拖拽事件，同步视口状态
-    this.worldGroup.on("dragstart", () => {
+    this.stage.on("dragstart", () => {
       this.onDragStart();
     });
 
-    this.worldGroup.on("dragmove", () => {
+    this.stage.on("dragmove", () => {
       this.onDragMove();
     });
 
-    this.worldGroup.on("dragend", () => {
+    this.stage.on("dragend", () => {
       this.onDragEnd();
+    });
+
+    this.stage.on("wheel", (e) => {
+      this.onWheel(e);
     });
   }
 
@@ -232,8 +200,6 @@ export class ViewportManager {
     this.viewport.screenWidth = width;
     this.viewport.screenHeight = height;
     this.viewport.visibleBounds = this.calculateVisibleBounds(
-      this.viewport.worldX,
-      this.viewport.worldY,
       this.viewport.zoom
     );
 
@@ -300,11 +266,7 @@ export class ViewportManager {
   /**
    * 缩放到指定点
    */
-  zoomToPoint(
-    point: Vector2D,
-    deltaZoom: number,
-    animate: boolean = true
-  ): void {
+  zoomToPoint(point: Vector2D, deltaZoom: number): void {
     const oldZoom = this.viewport.zoom;
     const newZoom = this.clampZoom(oldZoom + deltaZoom);
 
@@ -312,11 +274,7 @@ export class ViewportManager {
       return;
     }
 
-    if (animate && this.config.animation.enabled) {
-      this.animateZoomToPoint(point, oldZoom, newZoom);
-    } else {
-      this.immediateZoomToPoint(point, oldZoom, newZoom);
-    }
+    this.immediateZoomToPoint(point, oldZoom, newZoom);
   }
 
   /**
@@ -331,7 +289,7 @@ export class ViewportManager {
     const worldPoint = this.screenToWorld(point);
 
     // 更新缩放
-    this.worldGroup.scale({ x: newZoom, y: newZoom });
+    this.stage.scale({ x: newZoom, y: newZoom });
     this.viewport.zoom = newZoom;
 
     // 重新计算缩放后的屏幕位置
@@ -341,8 +299,8 @@ export class ViewportManager {
     const dx = point.x - newScreenPoint.x;
     const dy = point.y - newScreenPoint.y;
 
-    this.worldGroup.x(this.worldGroup.x() + dx);
-    this.worldGroup.y(this.worldGroup.y() + dy);
+    this.stage.x(this.stage.x() + dx);
+    this.stage.y(this.stage.y() + dy);
 
     // 更新视口状态
     this.updateViewportFromWorldGroup();
@@ -353,126 +311,45 @@ export class ViewportManager {
   }
 
   /**
-   * 动画缩放到指定点
-   */
-  private animateZoomToPoint(
-    point: Vector2D,
-    startZoom: number,
-    endZoom: number
-  ): void {
-    const startViewport = { ...this.viewport };
-    const worldPoint = this.screenToWorld(point);
-
-    // 计算目标视口状态
-    const targetZoom = endZoom;
-    const targetScreenX = -(worldPoint.x * targetZoom) + point.x;
-    const targetScreenY = -(worldPoint.y * targetZoom) + point.y;
-
-    const targetViewport: Viewport = {
-      ...startViewport,
-      zoom: targetZoom,
-      screenX: targetScreenX,
-      screenY: targetScreenY,
-      worldX: -targetScreenX / targetZoom,
-      worldY: -targetScreenY / targetZoom,
-      visibleBounds: this.calculateVisibleBounds(
-        -targetScreenX / targetZoom,
-        -targetScreenY / targetZoom,
-        targetZoom
-      ),
-    };
-
-    this.startAnimation({
-      type: "zoom",
-      startTime: performance.now(),
-      duration: this.config.animation.duration,
-      startViewport,
-      targetViewport,
-      easing: this.getEasingFunction(this.config.animation.easing),
-      onComplete: () => {
-        this.emitZoomEvent("zoom-end", startZoom, endZoom);
-      },
-      onUpdate: (viewport) => {
-        this.emitZoomEvent("zoom", startZoom, viewport.zoom);
-      },
-    });
-  }
-
-  /**
    * 以画布中心为基准缩放
    */
-  zoomToCenter(deltaZoom: number, animate: boolean = true): void {
+  zoomToCenter(deltaZoom: number): void {
     const center = {
       x: this.viewport.screenWidth / 2,
       y: this.viewport.screenHeight / 2,
     };
-    this.zoomToPoint(center, deltaZoom, animate);
+    this.zoomToPoint(center, deltaZoom);
   }
 
   /**
    * 缩放进入
    */
   zoomIn(animate: boolean = true): void {
-    this.zoomToCenter(this.config.zoomStep, animate);
+    this.zoomToCenter(this.config.zoomStep);
   }
 
   /**
    * 缩放退出
    */
   zoomOut(animate: boolean = true): void {
-    this.zoomToCenter(-this.config.zoomStep, animate);
+    this.zoomToCenter(-this.config.zoomStep);
   }
 
   /**
    * 平移视口
    */
-  panBy(dx: number, dy: number, animate: boolean = false): void {
-    if (animate && this.config.animation.enabled) {
-      this.animatePanBy(dx, dy);
-    } else {
-      this.immediatePanBy(dx, dy);
-    }
+  panBy(dx: number, dy: number): void {
+    this.immediatePanBy(dx, dy);
   }
 
   /**
    * 立即平移
    */
   private immediatePanBy(dx: number, dy: number): void {
-    this.worldGroup.x(this.worldGroup.x() + dx);
-    this.worldGroup.y(this.worldGroup.y() + dy);
+    this.stage.x(this.stage.x() + dx);
+    this.stage.y(this.stage.y() + dy);
     this.updateViewportFromWorldGroup();
     this.emitViewportChange("user");
-  }
-
-  /**
-   * 动画平移
-   */
-  private animatePanBy(dx: number, dy: number): void {
-    const startViewport = { ...this.viewport };
-    const targetScreenX = this.viewport.screenX + dx;
-    const targetScreenY = this.viewport.screenY + dy;
-
-    const targetViewport: Viewport = {
-      ...startViewport,
-      screenX: targetScreenX,
-      screenY: targetScreenY,
-      worldX: -targetScreenX / this.viewport.zoom,
-      worldY: -targetScreenY / this.viewport.zoom,
-      visibleBounds: this.calculateVisibleBounds(
-        -targetScreenX / this.viewport.zoom,
-        -targetScreenY / this.viewport.zoom,
-        this.viewport.zoom
-      ),
-    };
-
-    this.startAnimation({
-      type: "pan",
-      startTime: performance.now(),
-      duration: this.config.animation.duration,
-      startViewport,
-      targetViewport,
-      easing: this.getEasingFunction(this.config.animation.easing),
-    });
   }
 
   /**
@@ -482,34 +359,9 @@ export class ViewportManager {
     const targetScreenX = -worldX * this.viewport.zoom;
     const targetScreenY = -worldY * this.viewport.zoom;
 
-    if (animate && this.config.animation.enabled) {
-      const startViewport = { ...this.viewport };
-      const targetViewport: Viewport = {
-        ...startViewport,
-        screenX: targetScreenX,
-        screenY: targetScreenY,
-        worldX,
-        worldY,
-        visibleBounds: this.calculateVisibleBounds(
-          worldX,
-          worldY,
-          this.viewport.zoom
-        ),
-      };
-
-      this.startAnimation({
-        type: "pan",
-        startTime: performance.now(),
-        duration: this.config.animation.duration,
-        startViewport,
-        targetViewport,
-        easing: this.getEasingFunction(this.config.animation.easing),
-      });
-    } else {
-      this.worldGroup.position({ x: targetScreenX, y: targetScreenY });
-      this.updateViewportFromWorldGroup();
-      this.emitViewportChange("programmatic");
-    }
+    this.stage.position({ x: targetScreenX, y: targetScreenY });
+    this.updateViewportFromWorldGroup();
+    this.emitViewportChange("programmatic");
   }
 
   /**
@@ -527,11 +379,7 @@ export class ViewportManager {
   /**
    * 适应指定区域到视口
    */
-  fitToBounds(
-    bounds: BoundingBox,
-    padding: number = 50,
-    animate: boolean = true
-  ): void {
+  fitToBounds(bounds: BoundingBox, padding: number = 50): void {
     // 计算适合的缩放级别
     const scaleX = (this.viewport.screenWidth - padding * 2) / bounds.width;
     const scaleY = (this.viewport.screenHeight - padding * 2) / bounds.height;
@@ -541,11 +389,7 @@ export class ViewportManager {
     const centerX = bounds.x + bounds.width / 2;
     const centerY = bounds.y + bounds.height / 2;
 
-    if (animate && this.config.animation.enabled) {
-      this.animateFitToBounds(centerX, centerY, targetZoom);
-    } else {
-      this.immediateFitToBounds(centerX, centerY, targetZoom);
-    }
+    this.immediateFitToBounds(centerX, centerY, targetZoom);
   }
 
   /**
@@ -559,7 +403,7 @@ export class ViewportManager {
     const oldZoom = this.viewport.zoom;
 
     // 先设置缩放
-    this.worldGroup.scale({ x: targetZoom, y: targetZoom });
+    this.stage.scale({ x: targetZoom, y: targetZoom });
     this.viewport.zoom = targetZoom;
 
     // 然后居中
@@ -567,7 +411,7 @@ export class ViewportManager {
     const targetWorldY =
       centerY - this.viewport.screenHeight / (2 * targetZoom);
 
-    this.worldGroup.position({
+    this.stage.position({
       x: -targetWorldX * targetZoom,
       y: -targetWorldY * targetZoom,
     });
@@ -578,54 +422,11 @@ export class ViewportManager {
   }
 
   /**
-   * 动画适应到区域
-   */
-  private animateFitToBounds(
-    centerX: number,
-    centerY: number,
-    targetZoom: number
-  ): void {
-    const startViewport = { ...this.viewport };
-    const targetWorldX = centerX - this.viewport.screenWidth / (2 * targetZoom);
-    const targetWorldY =
-      centerY - this.viewport.screenHeight / (2 * targetZoom);
-
-    const targetViewport: Viewport = {
-      ...startViewport,
-      zoom: targetZoom,
-      screenX: -targetWorldX * targetZoom,
-      screenY: -targetWorldY * targetZoom,
-      worldX: targetWorldX,
-      worldY: targetWorldY,
-      visibleBounds: this.calculateVisibleBounds(
-        targetWorldX,
-        targetWorldY,
-        targetZoom
-      ),
-    };
-
-    this.startAnimation({
-      type: "both",
-      startTime: performance.now(),
-      duration: this.config.animation.duration * 1.5, // 更长的时间
-      startViewport,
-      targetViewport,
-      easing: this.getEasingFunction(this.config.animation.easing),
-      onComplete: () => {
-        this.emitZoomEvent("zoom-end", startViewport.zoom, targetZoom);
-      },
-      onUpdate: (viewport) => {
-        this.emitZoomEvent("zoom", startViewport.zoom, viewport.zoom);
-      },
-    });
-  }
-
-  /**
    * 重置视口
    */
-  resetView(animate: boolean = true): void {
-    this.panTo(0, 0, animate);
-    this.zoomToCenter(this.config.defaultZoom - this.viewport.zoom, animate);
+  resetView(): void {
+    this.panTo(0, 0);
+    this.zoomToCenter(this.config.defaultZoom - this.viewport.zoom);
   }
 
   // =============== 坐标转换 ===============
@@ -634,8 +435,8 @@ export class ViewportManager {
    * 屏幕坐标 → 世界坐标
    */
   screenToWorld(screenPos: Vector2D): Vector2D {
-    const layerPos = this.worldGroup.position();
-    const scale = this.worldGroup.scaleX(); // 假设等比例缩放
+    const layerPos = this.stage.position();
+    const scale = this.stage.scaleX(); // 假设等比例缩放
 
     return {
       x: (screenPos.x - layerPos.x) / scale,
@@ -647,8 +448,8 @@ export class ViewportManager {
    * 世界坐标 → 屏幕坐标
    */
   worldToScreen(worldPos: Vector2D): Vector2D {
-    const layerPos = this.worldGroup.position();
-    const scale = this.worldGroup.scaleX();
+    const layerPos = this.stage.position();
+    const scale = this.stage.scaleX();
 
     return {
       x: worldPos.x * scale + layerPos.x,
@@ -738,99 +539,6 @@ export class ViewportManager {
   // =============== 动画系统 ===============
 
   /**
-   * 启动动画循环
-   */
-  private startAnimationLoop(): void {
-    const animate = (time: number) => {
-      this.updateAnimation(time);
-      this.updateInertia(time);
-      this.animationFrameId = requestAnimationFrame(animate);
-    };
-
-    this.animationFrameId = requestAnimationFrame(animate);
-  }
-
-  /**
-   * 开始动画
-   */
-  private startAnimation(animation: ViewportAnimation): void {
-    // 取消现有动画
-    if (this.animation) {
-      this.animation = null;
-    }
-
-    this.animation = animation;
-
-    // 触发开始事件
-    if (animation.type === "zoom" || animation.type === "both") {
-      this.emitZoomEvent(
-        "zoom-start",
-        this.viewport.zoom,
-        animation.targetViewport.zoom
-      );
-    }
-    if (animation.type === "pan" || animation.type === "both") {
-      this.emitPanEvent("pan-start");
-    }
-  }
-
-  /**
-   * 更新动画
-   */
-  private updateAnimation(currentTime: number): void {
-    if (!this.animation) {
-      return;
-    }
-
-    const {
-      startTime,
-      duration,
-      startViewport,
-      targetViewport,
-      easing,
-      onComplete,
-      onUpdate,
-    } = this.animation;
-    const elapsed = currentTime - startTime;
-    const progress = Math.min(elapsed / duration, 1);
-
-    // 计算缓动进度
-    const easedProgress = easing(progress);
-
-    // 插值计算当前视口状态
-    const currentViewport = this.interpolateViewport(
-      startViewport,
-      targetViewport,
-      easedProgress
-    );
-
-    // 应用视口状态
-    this.applyViewport(currentViewport);
-
-    // 调用更新回调
-    if (onUpdate) {
-      onUpdate(currentViewport);
-    }
-
-    // 检查动画是否完成
-    if (progress >= 1) {
-      this.animation = null;
-
-      if (onComplete) {
-        onComplete();
-      }
-
-      // 触发结束事件
-      if (this.animation?.type === "zoom" || this.animation?.type === "both") {
-        this.emitZoomEvent("zoom-end", startViewport.zoom, targetViewport.zoom);
-      }
-      if (this.animation?.type === "pan" || this.animation?.type === "both") {
-        this.emitPanEvent("pan-end");
-      }
-    }
-  }
-
-  /**
    * 插值计算视口状态
    */
   private interpolateViewport(
@@ -847,57 +555,15 @@ export class ViewportManager {
       screenWidth: end.screenWidth,
       screenHeight: end.screenHeight,
       visibleBounds: this.calculateVisibleBounds(
-        start.worldX + (end.worldX - start.worldX) * t,
-        start.worldY + (end.worldY - start.worldY) * t,
         start.zoom + (end.zoom - start.zoom) * t
       ),
     };
   }
 
   /**
-   * 获取缓动函数
-   */
-  private getEasingFunction(name: string): (t: number) => number {
-    const easingFunctions = {
-      linear: (t: number) => t,
-      easeInQuad: (t: number) => t * t,
-      easeOutQuad: (t: number) => t * (2 - t),
-      easeInOutQuad: (t: number) =>
-        t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t,
-      easeInCubic: (t: number) => t * t * t,
-      easeOutCubic: (t: number) => --t * t * t + 1,
-      easeInOutCubic: (t: number) =>
-        t < 0.5 ? 4 * t * t * t : (t - 1) * (2 * t - 2) * (2 * t - 2) + 1,
-      easeInQuart: (t: number) => t * t * t * t,
-      easeOutQuart: (t: number) => 1 - --t * t * t * t,
-      easeInOutQuart: (t: number) =>
-        t < 0.5 ? 8 * t * t * t * t : 1 - 8 * --t * t * t * t,
-      easeInSine: (t: number) => 1 - Math.cos((t * Math.PI) / 2),
-      easeOutSine: (t: number) => Math.sin((t * Math.PI) / 2),
-      easeInOutSine: (t: number) => -(Math.cos(Math.PI * t) - 1) / 2,
-    };
-
-    return (
-      easingFunctions[name as keyof typeof easingFunctions] ||
-      easingFunctions.easeOutCubic
-    );
-  }
-
-  // =============== 惯性滚动系统 ===============
-
-  /**
    * 开始拖拽
    */
   private onDragStart(): void {
-    // 停止现有动画
-    this.animation = null;
-
-    // 重置惯性速度
-    this.inertia.velocityX = 0;
-    this.inertia.velocityY = 0;
-    this.inertia.isActive = false;
-    this.inertia.lastUpdateTime = performance.now();
-
     // 触发事件
     this.emitPanEvent("pan-start");
   }
@@ -907,33 +573,6 @@ export class ViewportManager {
    */
   private onDragMove(): void {
     const currentTime = performance.now();
-    const deltaTime = currentTime - this.inertia.lastUpdateTime;
-
-    console.error("onDragMove deltaTime:", deltaTime);
-
-    if (deltaTime > 0) {
-      // 计算速度（像素/毫秒）
-      const dx = this.worldGroup.x() - this.viewport.screenX;
-      const dy = this.worldGroup.y() - this.viewport.screenY;
-
-      this.inertia.velocityX = dx / deltaTime;
-      this.inertia.velocityY = dy / deltaTime;
-
-      // 限制最大速度
-      const maxSpeed = this.config.inertia.maxSpeed;
-      const speed = Math.sqrt(
-        this.inertia.velocityX * this.inertia.velocityX +
-          this.inertia.velocityY * this.inertia.velocityY
-      );
-
-      if (speed > maxSpeed) {
-        const scale = maxSpeed / speed;
-        this.inertia.velocityX *= scale;
-        this.inertia.velocityY *= scale;
-      }
-
-      this.inertia.lastUpdateTime = currentTime;
-    }
 
     // 更新视口
     this.updateViewportFromWorldGroup();
@@ -944,61 +583,34 @@ export class ViewportManager {
    * 拖拽结束
    */
   private onDragEnd(): void {
-    // 检查是否需要启动惯性滚动
-    const speed = Math.sqrt(
-      this.inertia.velocityX * this.inertia.velocityX +
-        this.inertia.velocityY * this.inertia.velocityY
-    );
-
-    if (this.config.inertia.enabled && speed > 0.1) {
-      this.inertia.isActive = true;
-      this.inertia.lastUpdateTime = performance.now();
-    }
-
     // 触发事件
     this.emitPanEvent("pan-end");
   }
 
-  /**
-   * 更新惯性滚动
+  /**   * 处理鼠标滚轮缩放
    */
-  private updateInertia(currentTime: number): void {
-    if (!this.inertia.isActive) {
+  private onWheel(e: Konva.KonvaEventObject<WheelEvent>): void {
+    e.evt.preventDefault();
+
+    const scaleBy = 1.05;
+    const oldZoom = this.viewport.zoom;
+    let newZoom = oldZoom;
+
+    if (e.evt.deltaY < 0) {
+      // 向上滚动，放大
+      newZoom = this.clampZoom(oldZoom * scaleBy);
+    } else {
+      // 向下滚动，缩小
+      newZoom = this.clampZoom(oldZoom / scaleBy);
+    }
+
+    if (oldZoom === newZoom) {
       return;
     }
 
-    const deltaTime = currentTime - this.inertia.lastUpdateTime;
-
-    if (deltaTime <= 0) {
-      return;
-    }
-
-    // 应用速度
-    const dx = this.inertia.velocityX * deltaTime;
-    const dy = this.inertia.velocityY * deltaTime;
-
-    this.worldGroup.x(this.worldGroup.x() + dx);
-    this.worldGroup.y(this.worldGroup.y() + dy);
-
-    // 应用减速度
-    this.inertia.velocityX *= this.config.inertia.deceleration;
-    this.inertia.velocityY *= this.config.inertia.deceleration;
-
-    this.inertia.lastUpdateTime = currentTime;
-
-    // 更新视口
-    this.updateViewportFromWorldGroup();
-
-    // 检查速度是否足够小，停止惯性
-    const speed = Math.sqrt(
-      this.inertia.velocityX * this.inertia.velocityX +
-        this.inertia.velocityY * this.inertia.velocityY
-    );
-
-    if (speed < 0.1) {
-      this.inertia.isActive = false;
-      this.inertia.velocityX = 0;
-      this.inertia.velocityY = 0;
+    const pointer = this.stage.getPointerPosition();
+    if (pointer) {
+      this.immediateZoomToPoint(pointer, oldZoom, newZoom);
     }
   }
 
@@ -1008,19 +620,15 @@ export class ViewportManager {
    * 从世界组位置更新视口状态
    */
   private updateViewportFromWorldGroup(): void {
-    const position = this.worldGroup.position();
-    const scale = this.worldGroup.scaleX(); // 假设等比例缩放
+    const position = this.stage.position();
+    const scale = this.stage.scaleX(); // 假设等比例缩放
 
     this.viewport.screenX = position.x;
     this.viewport.screenY = position.y;
     this.viewport.zoom = scale;
     this.viewport.worldX = -position.x / scale;
     this.viewport.worldY = -position.y / scale;
-    this.viewport.visibleBounds = this.calculateVisibleBounds(
-      -position.x / scale,
-      -position.y / scale,
-      scale
-    );
+    this.viewport.visibleBounds = this.calculateVisibleBounds(scale);
 
     // 应用边界约束
     if (this.config.constraints.enabled) {
@@ -1058,7 +666,7 @@ export class ViewportManager {
     if (changed) {
       this.viewport.screenX = -this.viewport.worldX * this.viewport.zoom;
       this.viewport.screenY = -this.viewport.worldY * this.viewport.zoom;
-      this.worldGroup.position({
+      this.stage.position({
         x: this.viewport.screenX,
         y: this.viewport.screenY,
       });
@@ -1069,12 +677,12 @@ export class ViewportManager {
    * 应用视口状态到世界组
    */
   private applyViewport(viewport: Viewport): void {
-    this.worldGroup.position({
+    this.stage.position({
       x: viewport.screenX,
       y: viewport.screenY,
     });
 
-    this.worldGroup.scale({
+    this.stage.scale({
       x: viewport.zoom,
       y: viewport.zoom,
     });
@@ -1086,11 +694,7 @@ export class ViewportManager {
   /**
    * 计算可见区域
    */
-  private calculateVisibleBounds(
-    worldX: number,
-    worldY: number,
-    zoom: number
-  ): {
+  private calculateVisibleBounds(zoom: number): {
     minX: number;
     minY: number;
     maxX: number;
@@ -1289,7 +893,7 @@ export class ViewportManager {
   /**
    * 设置视口状态
    */
-  setViewport(viewport: Partial<Viewport>, animate: boolean = false): void {
+  setViewport(viewport: Partial<Viewport>): void {
     const targetViewport: Viewport = {
       ...this.viewport,
       ...viewport,
@@ -1299,18 +903,7 @@ export class ViewportManager {
       targetViewport.zoom = this.clampZoom(viewport.zoom);
     }
 
-    if (animate && this.config.animation.enabled) {
-      this.startAnimation({
-        type: "both",
-        startTime: performance.now(),
-        duration: this.config.animation.duration,
-        startViewport: this.viewport,
-        targetViewport,
-        easing: this.getEasingFunction(this.config.animation.easing),
-      });
-    } else {
-      this.applyViewport(targetViewport);
-    }
+    this.applyViewport(targetViewport);
   }
 
   /**
@@ -1329,7 +922,7 @@ export class ViewportManager {
     // 立即应用一些配置更改
     if (config.defaultZoom !== undefined) {
       this.viewport.zoom = this.clampZoom(config.defaultZoom);
-      this.worldGroup.scale({ x: this.viewport.zoom, y: this.viewport.zoom });
+      this.stage.scale({ x: this.viewport.zoom, y: this.viewport.zoom });
     }
   }
 
@@ -1337,7 +930,7 @@ export class ViewportManager {
    * 获取世界组（供其他系统使用）
    */
   getWorldGroup(): Konva.Group {
-    return this.worldGroup;
+    return this.stage;
   }
 
   /**
@@ -1345,30 +938,6 @@ export class ViewportManager {
    */
   getStage(): Konva.Stage {
     return this.stage;
-  }
-
-  /**
-   * 检查是否在动画中
-   */
-  isAnimating(): boolean {
-    return this.animation !== null;
-  }
-
-  /**
-   * 检查是否在惯性滚动中
-   */
-  isInertiaActive(): boolean {
-    return this.inertia.isActive;
-  }
-
-  /**
-   * 停止所有动画和惯性
-   */
-  stopAllMotion(): void {
-    this.animation = null;
-    this.inertia.isActive = false;
-    this.inertia.velocityX = 0;
-    this.inertia.velocityY = 0;
   }
 
   // =============== 清理 ===============
@@ -1379,12 +948,6 @@ export class ViewportManager {
    * 销毁 ViewportManager
    */
   destroy(): void {
-    // 停止动画循环
-    if (this.animationFrameId) {
-      cancelAnimationFrame(this.animationFrameId);
-      this.animationFrameId = null;
-    }
-
     // 执行清理函数
     this.cleanupFunctions.forEach((fn) => fn());
     this.cleanupFunctions = [];
@@ -1393,17 +956,8 @@ export class ViewportManager {
     this.eventHandlers.clear();
 
     // 移除世界组的事件监听器
-    this.worldGroup.off("dragstart");
-    this.worldGroup.off("dragmove");
-    this.worldGroup.off("dragend");
-
-    // 重置状态
-    this.animation = null;
-    this.inertia = {
-      velocityX: 0,
-      velocityY: 0,
-      lastUpdateTime: 0,
-      isActive: false,
-    };
+    this.stage.off("dragstart");
+    this.stage.off("dragmove");
+    this.stage.off("dragend");
   }
 }

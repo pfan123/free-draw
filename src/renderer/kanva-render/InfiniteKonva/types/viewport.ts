@@ -12,11 +12,11 @@ export interface BoundingBox {
 }
 
 export interface Viewport {
-  // 视口在世界坐标系中的位置
+  // 世界坐标系中的视口位置（左上角）
   worldX: number;
   worldY: number;
 
-  // 视口在屏幕坐标系中的偏移（像素）
+  // 屏幕像素坐标（视口在Stage中的位置）- 视口在屏幕坐标系中的偏移（像素）
   screenX: number;
   screenY: number;
 
@@ -45,23 +45,6 @@ export interface ViewportConfig {
   // 缩放步长
   zoomStep: number;
 
-  // 平移灵敏度
-  panSensitivity: number;
-
-  // 动画配置
-  animation: {
-    enabled: boolean;
-    duration: number; // 动画时长（毫秒）
-    easing: string; // 缓动函数
-  };
-
-  // 惯性滚动配置
-  inertia: {
-    enabled: boolean;
-    deceleration: number; // 减速度 0-1
-    maxSpeed: number; // 最大速度（像素/帧）
-  };
-
   // 边界限制
   constraints: {
     enabled: boolean;
@@ -77,24 +60,6 @@ export interface ViewportConfig {
     throttleInterval: number; // 节流间隔（毫秒）
     debounceResize: number; // 防抖时间（毫秒）
   };
-}
-
-export interface ViewportAnimation {
-  type: "pan" | "zoom" | "both";
-  startTime: number;
-  duration: number;
-  startViewport: Viewport;
-  targetViewport: Viewport;
-  easing: (t: number) => number;
-  onComplete?: () => void;
-  onUpdate?: (viewport: Viewport) => void;
-}
-
-export interface InertiaState {
-  velocityX: number;
-  velocityY: number;
-  lastUpdateTime: number;
-  isActive: boolean;
 }
 
 export interface ViewportEvent {

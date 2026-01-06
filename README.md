@@ -1,3 +1,44 @@
+# 图片编辑器协同
+
+渲染层核心
+
+- 坐标系：世界坐标（逻辑画布，是四象限坐标系：左上角为原点）、屏幕坐标（一象限坐标系，x、y 都大于 0）
+
+- 逻辑画布偏移 offset / scale
+
+- 坐标转换
+
+```
+屏幕坐标 → 世界坐标（抵消平移 + 缩放）
+worldX = (screenX - offsetX) / scale
+worldY = (screenY - offsetY) / scale
+
+
+世界坐标（抵消平移 + 缩放）→ 屏幕坐标
+screenX = worldX * scale + offsetX
+screenY = worldY * scale + offsetY
+```
+
+- 层级设计
+
+```
+无限画布(整体可以拖动)
+
+- 世界坐标层 -stage （可移动的）
+  - gridLayer 网格层
+  - mainLayer 绘制层
+  - overlayLayer 辅助层（覆盖层（UI元素））
+
+
+固定画布（只有内容层可以移动）
+
+- stage
+  - gridLayer 网格层
+  - worldLayer 可移动的层
+  - overlayLayer 辅助层（覆盖层（UI元素））
+
+```
+
 ## UI 层的核心设计原则
 
 1. 分层架构
@@ -152,3 +193,7 @@ src/
 ├── data/                    # 数据层
 └── utils/                   # 工具层
 ```
+
+## 参考资料
+
+[infinite-canvas-tutorial](https://github.com/xiaoiver/infinite-canvas-tutorial/blob/master/README.zh_CN.md)

@@ -7,6 +7,7 @@
  */
 import Konva from "konva";
 import { ViewportManager } from "../viewport/ViewportManager";
+import { Viewport } from "../types/viewport";
 import {
   GridConfig,
   GridLevel,
@@ -17,37 +18,10 @@ import {
 const defaultConfig: GridConfig = {
   enabled: true,
   size: 20,
-  color: "#e0e0e0",
+  color: "#a3a",
   opacity: 0.5,
   lineWidth: 1,
-  levels: [
-    {
-      size: 20, // 主网格
-      color: "#b0b0b0",
-      opacity: 0.3,
-      lineWidth: 1.5,
-      visibleZoomRange: [0, 0.5],
-      dashPattern: [10, 5],
-    },
-    {
-      size: 40, // 次网格
-      color: "#d0d0d0",
-      opacity: 0.4,
-      lineWidth: 1,
-      visibleZoomRange: [0.5, 2],
-      dashPattern: [5, 3],
-    },
-    {
-      size: 20, // 基础网格
-      color: "#e0e0e0",
-      opacity: 0.5,
-      lineWidth: 0.5,
-      visibleZoomRange: [2, 20],
-    },
-  ],
-  showMajorGrid: true,
-  showMinorGrid: true,
-  dashEnabled: true,
+  dashEnabled: false,
   dashPattern: [5, 3],
   snapEnabled: true,
   snapThreshold: 5,
@@ -105,95 +79,41 @@ export class GridSystem {
       visibleBounds: { minX: 0, minY: 0, maxX: 0, maxY: 0 },
       zoom: 1,
       viewportOffset: { x: 0, y: 0 },
-      activeLevels: [],
       renderTime: 0,
     };
 
     // 监听视口变化
-    this.viewportManager.on(
-      "viewport-change",
-      this.onViewportChange.bind(this)
-    );
+    this.viewportManager.on("viewport-change", (data: any) => {
+      this.onViewportChange(data.viewport);
+    });
   }
 
-  private onViewportChange(viewport: {
-    worldX: number;
-    worldY: number;
-    zoom: number;
-    screenWidth: number;
-    screenHeight: number;
-  }): void {
+  private onViewportChange(viewport: Viewport): void {
     this.update(viewport);
   }
 
   /**
    * 更新网格（视口变化时调用）
    */
-  update(viewport: {
-    worldX: number;
-    worldY: number;
-    zoom: number;
-    screenWidth: number;
-    screenHeight: number;
-  }): void {
+  update(viewport: Viewport): void {
     if (!this.config.enabled) return;
 
     // 计算可见区域的世界坐标
-    const visibleBounds = this.calculateVisibleBounds(viewport);
+    const visibleBounds = viewport.visibleBounds;
 
     // 检查是否需要重新渲染
-    if (this.shouldRender(visibleBounds, viewport.zoom)) {
-      // 防抖更新
-      if (this.renderTimeout) {
-        clearTimeout(this.renderTimeout);
-      }
+    // if (this.shouldRender(visibleBounds, viewport.zoom)) {
+    //   // 防抖更新
+    //   if (this.renderTimeout) {
+    //     clearTimeout(this.renderTimeout);
+    //   }
 
-      this.renderTimeout = window.setTimeout(() => {
-        this.renderGrid(visibleBounds, viewport);
-        this.renderTimeout = null;
-      }, this.config.updateDebounce);
-    }
-  }
-
-  /**
-   * 计算可见区域
-   */
-  private calculateVisibleBounds(viewport: {
-    worldX: number;
-    worldY: number;
-    zoom: number;
-    screenWidth: number;
-    screenHeight: number;
-  }): { minX: number; minY: number; maxX: number; maxY: number } {
-    // 屏幕坐标转世界坐标
-    const screenToWorld = (screenX: number, screenY: number) => {
-      return {
-        x: viewport.worldX + screenX / viewport.zoom,
-        y: viewport.worldY + screenY / viewport.zoom,
-      };
-    };
-
-    // 扩展可见区域，确保边缘网格线完整显示
-    const padding = this.config.size * 2;
-
-    const topLeft = screenToWorld(-padding, -padding);
-    const bottomRight = screenToWorld(
-      viewport.screenWidth + padding,
-      viewport.screenHeight + padding
-    );
-
-    return {
-      minX:
-        Math.floor(topLeft.x / this.config.size) * this.config.size - padding,
-      minY:
-        Math.floor(topLeft.y / this.config.size) * this.config.size - padding,
-      maxX:
-        Math.ceil(bottomRight.x / this.config.size) * this.config.size +
-        padding,
-      maxY:
-        Math.ceil(bottomRight.y / this.config.size) * this.config.size +
-        padding,
-    };
+    //   this.renderTimeout = window.setTimeout(() => {
+    //     this.render(visibleBounds, viewport);
+    //     this.renderTimeout = null;
+    //   }, this.config.updateDebounce);
+    // }
+    this.render(visibleBounds, viewport);
   }
 
   /**
@@ -220,7 +140,7 @@ export class GridSystem {
   /**
    * 渲染网格
    */
-  private renderGrid(
+  private render(
     visibleBounds: { minX: number; minY: number; maxX: number; maxY: number },
     viewport: any
   ): void {
@@ -237,27 +157,21 @@ export class GridSystem {
       visibleBounds,
       zoom: viewport.zoom,
       viewportOffset: { x: viewport.worldX, y: viewport.worldY },
-      activeLevels: this.getActiveLevels(viewport.zoom),
       renderTime: 0,
     };
 
-    // 根据缩放级别确定要渲染的网格级别
-    const activeLevels = this.renderState.activeLevels;
-
     // 渲染每个级别的网格
-    activeLevels.forEach((level) => {
-      this.renderGridLevel(level, visibleBounds, viewport);
-    });
+    this.renderGrid(visibleBounds, viewport);
 
     // 绘制中心点（可选）
     if (viewport.zoom > 1) {
       this.renderCenterPoint(viewport);
     }
 
-    // 绘制坐标轴（可选）
-    if (viewport.zoom > 0.5) {
-      this.renderAxes(visibleBounds, viewport);
-    }
+    // // 绘制坐标轴（可选）
+    // if (viewport.zoom > 0.5) {
+    //   this.renderAxes(visibleBounds, viewport);
+    // }
 
     // 更新渲染时间
     this.renderState.renderTime = performance.now() - startTime;
@@ -271,42 +185,35 @@ export class GridSystem {
   }
 
   /**
-   * 获取当前缩放级别下的活动网格级别
-   */
-  private getActiveLevels(zoom: number): GridLevel[] {
-    return this.config.levels.filter((level) => {
-      const [minZoom, maxZoom] = level.visibleZoomRange;
-      return zoom >= minZoom && zoom <= maxZoom;
-    });
-  }
-
-  /**
    * 渲染单个网格级别
    */
-  private renderGridLevel(
-    level: GridLevel,
+  private renderGrid(
     bounds: { minX: number; minY: number; maxX: number; maxY: number },
     viewport: any
   ): void {
-    const gridSize = level.size;
+    const {
+      size: gridSize,
+      color,
+      lineWidth,
+      opacity,
+      dashEnabled,
+      dashPattern,
+    } = this.config;
 
     // 计算起始网格线位置（对齐网格）
     const startX = Math.floor(bounds.minX / gridSize) * gridSize;
     const startY = Math.floor(bounds.minY / gridSize) * gridSize;
-    const endX = Math.ceil(bounds.maxX / gridSize) * gridSize;
-    const endY = Math.ceil(bounds.maxY / gridSize) * gridSize;
+    const endX = Math.floor(bounds.maxX / gridSize) * gridSize;
+    const endY = Math.floor(bounds.maxY / gridSize) * gridSize;
 
     // 渲染垂直线
     for (let x = startX; x <= endX; x += gridSize) {
       const line = new Konva.Line({
         points: [x, bounds.minY, x, bounds.maxY],
-        stroke: level.color,
-        strokeWidth: this.adjustLineWidth(level.lineWidth, viewport.zoom),
-        opacity: level.opacity,
-        dash:
-          level.dashPattern && viewport.zoom < 2
-            ? level.dashPattern
-            : undefined,
+        stroke: color,
+        strokeWidth: this.adjustLineWidth(lineWidth, viewport.zoom),
+        opacity,
+        dash: dashEnabled ? dashPattern : undefined,
         lineCap: "round",
         perfectDrawEnabled: false, // 关闭完美绘制，提高性能
         shadowForStrokeEnabled: false,
@@ -319,13 +226,10 @@ export class GridSystem {
     for (let y = startY; y <= endY; y += gridSize) {
       const line = new Konva.Line({
         points: [bounds.minX, y, bounds.maxX, y],
-        stroke: level.color,
-        strokeWidth: this.adjustLineWidth(level.lineWidth, viewport.zoom),
-        opacity: level.opacity,
-        dash:
-          level.dashPattern && viewport.zoom < 2
-            ? level.dashPattern
-            : undefined,
+        stroke: color,
+        strokeWidth: this.adjustLineWidth(lineWidth, viewport.zoom),
+        opacity,
+        dash: dashEnabled ? dashPattern : undefined,
         lineCap: "round",
         perfectDrawEnabled: false,
         shadowForStrokeEnabled: false,

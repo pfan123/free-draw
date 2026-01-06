@@ -1,6 +1,4 @@
 import React, { useEffect, useState, useRef } from "react";
-import { Renderer } from "@renderer/kanva-render";
-
 import { InfiniteKonvaCanvas } from "@renderer/kanva-render/InfiniteKonva/canvas/InfiniteKonvaCanvas";
 
 import styles from "./index.module.scss";
@@ -11,11 +9,6 @@ const App = () => {
 
   useEffect(() => {
     if (!containerRef.current) return;
-
-    const renderer = new Renderer(containerRef.current, {
-      width: containerRef.current.clientWidth,
-      height: containerRef.current.clientHeight,
-    });
 
     // 1. 创建画布实例
     const canvasInstance = new InfiniteKonvaCanvas({
@@ -31,7 +24,7 @@ const App = () => {
     setCanvas(canvasInstance);
 
     return () => {
-      renderer.dispose();
+      // renderer.dispose();
     };
   }, []);
 

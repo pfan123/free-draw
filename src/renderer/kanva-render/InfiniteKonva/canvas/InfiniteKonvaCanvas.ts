@@ -2,6 +2,7 @@
 import Konva from "konva";
 import { ChunkedCanvas } from "./ChunkedCanvas";
 import { ViewportManager } from "../viewport/ViewportManager";
+import { ViewportEvent } from "../types/viewport";
 import { GridSystem } from "../grid/GridSystem";
 import { EventSystem } from "../events/EventSystem";
 import { MemoryManager } from "../performance/MemoryManager";
@@ -113,7 +114,7 @@ export class InfiniteKonvaCanvas {
     container.style.overflow = "hidden";
     container.style.position = "relative";
 
-    // 创建Stage
+    // 创建Stage，可移动和缩放容器
     const stage = new Konva.Stage({
       container,
       width: container.clientWidth,
@@ -128,14 +129,27 @@ export class InfiniteKonvaCanvas {
    */
   private initializeComponents(): void {
     // 创建世界组
-    const worldLayer = new Konva.Layer();
-    this.stage.add(worldLayer);
+    const mainLayer = new Konva.Layer();
+    this.stage.add(mainLayer);
 
     // 1. 视口管理器
     this.viewportManager = new ViewportManager(
       this.stage,
-      worldLayer, // 临时group，会被chunkedCanvas替换
+      // worldLayer, // 临时group，会被chunkedCanvas替换
       this.config.viewport
+    );
+
+    mainLayer.add(
+      new Konva.Rect({
+        x: 500,
+        y: 500,
+        width: 200,
+        height: 100,
+        fill: "blue",
+        stroke: "black",
+        strokeWidth: 4,
+        draggable: true,
+      })
     );
 
     // create our shape
@@ -148,7 +162,7 @@ export class InfiniteKonvaCanvas {
       strokeWidth: 4,
     });
 
-    worldLayer.add(circle);
+    mainLayer.add(circle);
 
     // 2. 分块画布
     this.chunkedCanvas = new ChunkedCanvas(this.stage, this.config.chunk);
@@ -187,17 +201,16 @@ export class InfiniteKonvaCanvas {
    * 连接各个组件
    */
   private connectComponents(): void {
-    // // 视口变化时更新网格和分块
-    // this.viewportManager.on("viewport-change", (viewport) => {
-    //   this.gridSystem.update(viewport);
-    //   this.chunkedCanvas.updateViewport(viewport);
+    // 视口变化时更新网格和分块
+    this.viewportManager.on("viewport-change", (data: ViewportEvent) => {
+      // this.chunkedCanvas.updateViewport(viewport);
 
-    //   // 更新性能优化器的LOD
-    //   this.performanceOptimizer.updateViewport(viewport);
+      // 更新性能优化器的LOD
+      // this.performanceOptimizer.updateViewport(viewport);
 
-    //   // 更新状态
-    //   this.state.viewport = viewport;
-    // });
+      // 更新状态
+      this.state.viewport = data.viewport;
+    });
 
     // // 事件系统处理用户交互
     // this.eventSystem.on("dragmove", (event) => {

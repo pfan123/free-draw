@@ -9,11 +9,6 @@ export interface GridConfig {
   opacity: number; // 不透明度
   lineWidth: number; // 线宽
 
-  // 多级网格
-  levels: GridLevel[]; // 网格级别配置
-  showMajorGrid: boolean; // 是否显示主网格
-  showMinorGrid: boolean; // 是否显示次网格
-
   // 样式
   dashEnabled: boolean; // 是否使用虚线
   dashPattern: number[]; // 虚线模式
@@ -23,18 +18,6 @@ export interface GridConfig {
   // 性能
   renderQuality: "low" | "medium" | "high"; // 渲染质量
   updateDebounce: number; // 更新防抖时间（毫秒）
-}
-
-/**
- * 网格级别
- */
-export interface GridLevel {
-  size: number; // 网格大小
-  color: string; // 颜色
-  opacity: number; // 不透明度
-  lineWidth: number; // 线宽
-  visibleZoomRange: [number, number]; // 可见的缩放范围
-  dashPattern?: number[]; // 虚线模式
 }
 
 /**
@@ -49,7 +32,6 @@ export interface GridRenderState {
   };
   zoom: number;
   viewportOffset: { x: number; y: number };
-  activeLevels: GridLevel[];
   renderTime: number;
 }
 
