@@ -197,3 +197,5 @@ src/
 ## 参考资料
 
 [infinite-canvas-tutorial](https://github.com/xiaoiver/infinite-canvas-tutorial/blob/master/README.zh_CN.md)
+
+[Rsbuild 来构建一个 React 应用](https://rsbuild.rs/zh/guide/framework/react)

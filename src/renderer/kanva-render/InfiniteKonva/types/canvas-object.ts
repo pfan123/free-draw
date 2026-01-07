@@ -353,15 +353,7 @@ export interface CanvasObjectStyle {
  */
 export interface CanvasObjectSpecificProperties {
   // 矩形
-  cornerRadius?:
-    | number
-    | number[]
-    | {
-        topLeft?: number;
-        topRight?: number;
-        bottomRight?: number;
-        bottomLeft?: number;
-      };
+  cornerRadius?: number | number[];
 
   // 椭圆/圆
   radius?: number; // 圆形的半径
@@ -542,6 +534,9 @@ export interface CanvasObjectMetadata {
     format?: string; // 格式化模板
     updateOn?: "always" | "change"; // 更新时机
   };
+
+  visible?: boolean;
+  locked?: boolean;
 }
 
 /**
@@ -550,8 +545,8 @@ export interface CanvasObjectMetadata {
 export interface CanvasObject
   extends CanvasObjectBase,
     CanvasObjectGeometry,
-    CanvasObjectStyle,
     CanvasObjectHierarchy {
+  style?: CanvasObjectStyle;
   // 类型特定属性
   properties: CanvasObjectSpecificProperties;
 
@@ -608,7 +603,7 @@ export interface RenderConfig {
   useCache: boolean; // 是否使用节点缓存
   batchDraw: boolean; // 是否批量绘制
   simplifyOnZoomOut: boolean; // 缩放时是否简化渲染
-  virtualRendering: boolean; // 是否只渲染可见区域
+  virtualRendering?: boolean; // 是否只渲染可见区域
 
   // LOD配置
   lodThresholds: {

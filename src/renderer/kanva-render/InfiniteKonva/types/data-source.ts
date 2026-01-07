@@ -1,5 +1,3 @@
-// types/data-source.ts
-
 import {
   CanvasObject,
   CanvasObjectUpdate,

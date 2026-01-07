@@ -11,6 +11,8 @@ import {
   CleanupOptions,
 } from "../types/memory-manager";
 
+import Konva from "konva";
+
 export class MemoryManager {
   // 配置
   private config: MemoryManagerConfig;
@@ -229,7 +231,7 @@ export class MemoryManager {
   /**
    * 检查内存泄漏
    */
-  private checkForLeaks(): void {
+  private checkForLeaks(): number {
     // 检查引用计数异常的对象
     let leaks = 0;
 
@@ -336,7 +338,7 @@ export class MemoryManager {
   /**
    * 执行内存清理
    */
-  performCleanup(options?: CleanupOptions): void {
+  performCleanup(options?: CleanupOptions): number {
     const opts: CleanupOptions = {
       aggressive: false,
       preserveVisible: true,

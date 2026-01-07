@@ -20,12 +20,17 @@ import { EventSystemConfig } from "../types/event-system";
 import { MemoryManagerConfig } from "../types/memory-manager";
 import { PerformanceConfig } from "../types/performance-optimizer";
 import { CanvasDataSource } from "../data/sources/base/CanvasDataSource";
+import { MemoryDataSource } from "../data/sources/local/MemoryDataSource";
 
 /**
  * 完整无限画布配置
  */
 export interface InfiniteCanvasConfig {
   container: HTMLDivElement; // 容器元素ID
+  dataSource?: {
+    type: "localStorage" | "indexedDB" | "rest" | "hybrid" | "custom";
+    config?: any;
+  };
   viewport?: Partial<VirtualViewportConfig>;
   grid?: Partial<GridConfig>;
   events?: Partial<EventSystemConfig>;
@@ -47,9 +52,6 @@ export interface CanvasState {
   selectedObjects: string[];
 }
 
-/**
- * 完整无限画布实现
- */
 export class InfiniteKonvaCanvas {
   // 核心组件
   private stage: Konva.Stage;
@@ -62,6 +64,9 @@ export class InfiniteKonvaCanvas {
   private memoryManager!: MemoryManager;
   private performanceOptimizer!: PerformanceOptimizer;
   private objectRenderer!: ObjectRenderer;
+
+  // 主要层
+  private mainLayer!: Konva.Layer;
 
   // 状态管理
   private state: CanvasState;
@@ -82,9 +87,6 @@ export class InfiniteKonvaCanvas {
     // 初始化Stage
     this.stage = this.createStage(container);
 
-    // 初始化组件
-    this.initializeComponents();
-
     // 初始化状态
     this.state = {
       viewport: {},
@@ -96,8 +98,12 @@ export class InfiniteKonvaCanvas {
       selectedObjects: [],
     };
 
-    // 初始化数据源
-    // this.dataSource = new CanvasDataSource();
+    // 初始化数据源（核心！）
+    // 根据配置选择数据源实现，默认使用内存实现
+    this.dataSource = new MemoryDataSource();
+
+    // 初始化组件
+    this.initializeComponents();
 
     // 绑定事件
     this.bindEvents();
@@ -129,8 +135,8 @@ export class InfiniteKonvaCanvas {
    */
   private initializeComponents(): void {
     // 创建世界组
-    const mainLayer = new Konva.Layer();
-    this.stage.add(mainLayer);
+    this.mainLayer = new Konva.Layer();
+    this.stage.add(this.mainLayer);
 
     // 1. 视口管理器
     this.viewportManager = new ViewportManager(
@@ -138,31 +144,6 @@ export class InfiniteKonvaCanvas {
       // worldLayer, // 临时group，会被chunkedCanvas替换
       this.config.viewport
     );
-
-    mainLayer.add(
-      new Konva.Rect({
-        x: 500,
-        y: 500,
-        width: 200,
-        height: 100,
-        fill: "blue",
-        stroke: "black",
-        strokeWidth: 4,
-        draggable: true,
-      })
-    );
-
-    // create our shape
-    var circle = new Konva.Circle({
-      x: this.stage.width() / 2,
-      y: this.stage.height() / 2,
-      radius: 70,
-      fill: "red",
-      stroke: "black",
-      strokeWidth: 4,
-    });
-
-    mainLayer.add(circle);
 
     // 2. 分块画布
     this.chunkedCanvas = new ChunkedCanvas(this.stage, this.config.chunk);
@@ -195,6 +176,51 @@ export class InfiniteKonvaCanvas {
 
     // 连接组件
     this.connectComponents();
+
+    // 6. 初始化数据加载
+    this.initializeData();
+  }
+
+  /**
+   * 初始化数据加载
+   */
+  private async initializeData() {
+    await this.dataSource.initialize();
+    const testObjects = [
+      {
+        id: "test-rect",
+        type: "rectangle",
+        position: { x: 100, y: 100 },
+        size: { x: 200, y: 150 },
+        rotation: 0,
+        scale: { x: 1, y: 1 },
+        zIndex: 0,
+        style: {
+          fill: "#4CAF50",
+          stroke: { color: "#2E7D32", width: 2 },
+        },
+        properties: { cornerRadius: 10 },
+        metadata: {
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          createdBy: "system",
+          version: 1,
+          visible: true,
+          locked: false,
+        },
+      },
+    ];
+
+    this.objectRenderer.renderToLayer(
+      testObjects,
+      this.mainLayer,
+      this.state.viewport
+    );
+
+    // 批量创建
+    const createResult = await this.dataSource.createObjects(testObjects);
+
+    console.error("createResult", createResult);
   }
 
   /**
@@ -223,19 +249,26 @@ export class InfiniteKonvaCanvas {
     //   this.viewportManager.handleZoom(event);
     // });
 
-    // 性能监控
-    setInterval(() => {
-      const metrics = this.performanceOptimizer.getMetrics();
-      const memory = this.memoryManager.getMetrics();
+    // 开始性能监控
+    this.startPerformanceMonitoring.bind(this)();
+  }
 
-      this.state.performance = metrics;
-      this.state.memory = memory;
+  /**
+   * 性能监控
+   */
+  startPerformanceMonitoring(): void {
+    const metrics = this.performanceOptimizer.getMetrics();
+    const memory = this.memoryManager.getMetrics();
 
-      // 如果性能下降，触发优化
-      if (metrics.fps < 30) {
-        // this.triggerOptimization();
-      }
-    }, 1000);
+    this.state.performance = metrics;
+    this.state.memory = memory;
+
+    // 如果性能下降，触发优化
+    if (metrics.fps < 30) {
+      this.triggerOptimization();
+    }
+
+    requestAnimationFrame(this.startPerformanceMonitoring.bind(this));
   }
 
   /**
@@ -446,10 +479,10 @@ export class InfiniteKonvaCanvas {
     this.objectRenderer.clearCache();
 
     // 3. 降低LOD级别
-    this.performanceOptimizer.reduceLOD();
+    // this.performanceOptimizer.reduceLOD();
 
     // 4. 限制渲染频率
-    this.performanceOptimizer.throttleRendering();
+    // this.performanceOptimizer.throttleRendering();
   }
 
   /**

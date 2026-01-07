@@ -261,15 +261,12 @@ export class PerformanceOptimizer {
    * 批量渲染对象
    */
   private renderBatch(items: any[]): void {
-    // 开始批量绘制
-    this.stage.batchDrawStart();
-
     items.forEach((item) => {
       this.renderObject(item);
     });
 
-    // 结束批量绘制
-    this.stage.batchDrawEnd();
+    // 批量绘制
+    this.stage.batchDraw();
   }
 
   /**

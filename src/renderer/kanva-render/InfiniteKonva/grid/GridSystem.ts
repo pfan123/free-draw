@@ -8,17 +8,12 @@
 import Konva from "konva";
 import { ViewportManager } from "../viewport/ViewportManager";
 import { Viewport } from "../types/viewport";
-import {
-  GridConfig,
-  GridLevel,
-  GridRenderState,
-  SnapInfo,
-} from "../types/grid-system";
+import { GridConfig, GridRenderState, SnapInfo } from "../types/grid-system";
 
 const defaultConfig: GridConfig = {
   enabled: true,
   size: 20,
-  color: "#a3a",
+  color: "#e0e0e0",
   opacity: 0.5,
   lineWidth: 1,
   dashEnabled: false,

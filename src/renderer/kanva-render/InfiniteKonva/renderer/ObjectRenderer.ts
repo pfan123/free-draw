@@ -1,4 +1,3 @@
-// renderer/ObjectRenderer.ts
 import Konva from "konva";
 
 import {
@@ -156,8 +155,8 @@ export class ObjectRenderer {
     });
 
     // 路径的特殊样式
-    line.lineCap(data.style.lineCap || "round");
-    line.lineJoin(data.style.lineJoin || "round");
+    line.lineCap(data.style?.stroke?.lineCap || "round");
+    line.lineJoin(data.style?.stroke?.lineJoin || "round");
 
     return line;
   }
@@ -173,7 +172,7 @@ export class ObjectRenderer {
       fontSize: data.properties.fontSize || 16,
       fontFamily: data.properties.fontFamily || "Arial",
       fontStyle: data.properties.fontStyle || "normal",
-      align: data.properties.align || "left",
+      align: data.properties?.textAlign || "left",
     };
 
     // LOD优化：缩放很小时简化文本渲染
@@ -278,38 +277,38 @@ export class ObjectRenderer {
     node.id(data.id);
 
     // 应用样式
-    if (data.style.fill) {
-      node.fill(data.style.fill);
+    if (data?.style?.fill) {
+      node.fill(data.style.fill as string);
     }
 
-    if (data.style.stroke) {
-      node.stroke(data.style.stroke);
-      node.strokeWidth(data.style.strokeWidth || 1);
+    if (data?.style?.stroke) {
+      node.stroke(data.style.stroke.color as string);
+      node.strokeWidth(data.style.stroke.width || 1);
     }
 
-    if (data.style.opacity !== undefined) {
+    if (data?.style?.opacity !== undefined) {
       node.opacity(data.style.opacity);
     }
 
     // 阴影效果
-    if (data.style.shadowColor) {
-      node.shadowColor(data.style.shadowColor);
-      node.shadowBlur(data.style.shadowBlur || 5);
-      node.shadowOffset(data.style.shadowOffset || { x: 0, y: 0 });
-      node.shadowEnabled(true);
+    if (data?.style?.shadow) {
+      node.shadowColor(data.style.shadow.color);
+      node.shadowBlur(data.style.shadow.blur || 5);
+      node.shadowOffset(data.style.shadow.offset || { x: 0, y: 0 });
+      node.shadowEnabled(data.style.shadow.enabled || true);
     }
 
     // 虚线样式
-    if (data.style.dash) {
-      node.dash(data.style.dash);
+    if (data.style?.stroke?.dash) {
+      node.dash(data.style.stroke.dash);
     }
 
     // 线帽和连接
-    if (data.style.lineCap) {
-      node.lineCap(data.style.lineCap);
+    if (data.style?.stroke?.lineCap) {
+      node.lineCap(data.style.stroke.lineCap);
     }
-    if (data.style.lineJoin) {
-      node.lineJoin(data.style.lineJoin);
+    if (data.style?.stroke?.lineJoin) {
+      node.lineJoin(data.style?.stroke?.lineJoin);
     }
 
     // 变换
@@ -333,17 +332,10 @@ export class ObjectRenderer {
     layer: Konva.Layer,
     viewport: { zoom: number; visibleBounds: any }
   ): void {
-    const batch = layer.getBatchDraw();
-
-    // 开始批量操作（如果启用）
-    if (this.config.batchDraw) {
-      layer.batchDrawStart();
-    }
-
     // 获取当前可见的对象ID
     const visibleIds = new Set<string>();
 
-    objects.forEach((obj) => {
+    objects.forEach(async (obj) => {
       visibleIds.add(obj.id);
 
       // 检查对象是否已经在层中
@@ -351,10 +343,10 @@ export class ObjectRenderer {
 
       if (existingNode) {
         // 更新现有节点
-        this.updateNode(existingNode, obj, viewport.zoom);
+        this.updateNode(existingNode as Konva.Shape, obj, viewport.zoom);
       } else {
         // 创建新节点
-        const node = this.createNode(obj, viewport.zoom);
+        const node = await this.createNode(obj, viewport.zoom);
 
         // 应用LOD优化
         this.applyLodOptimizations(node, viewport.zoom);
@@ -373,9 +365,11 @@ export class ObjectRenderer {
     // 根据zIndex排序
     this.sortByZIndex(layer);
 
-    // 结束批量操作
+    // 批量操作
     if (this.config.batchDraw) {
-      layer.batchDrawEnd();
+      layer.batchDraw();
+    } else {
+      layer.draw();
     }
 
     // 更新可见对象集合
@@ -514,7 +508,7 @@ export class ObjectRenderer {
    */
   private sortByZIndex(layer: Konva.Layer): void {
     const children = layer.getChildren();
-    children.sort((a, b) => {
+    children.sort((a: Konva.Node, b: Konva.Node) => {
       const aData = a.getAttr("data-object");
       const bData = b.getAttr("data-object");
 

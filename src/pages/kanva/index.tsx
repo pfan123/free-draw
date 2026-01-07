@@ -20,6 +20,29 @@ const App = () => {
       // },
     });
 
+    canvasInstance.addObject({
+      id: "test-rect",
+      type: "rectangle",
+      position: { x: 100, y: 100 },
+      size: { x: 200, y: 150 },
+      rotation: 0,
+      scale: { x: 1, y: 1 },
+      zIndex: 0,
+      style: {
+        fill: "#4CAF50",
+        stroke: { color: "#2E7D32", width: 2 },
+      },
+      properties: { cornerRadius: 10 },
+      metadata: {
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        createdBy: "system",
+        version: 1,
+        visible: true,
+        locked: false,
+      },
+    });
+
     // 4. 设置状态
     setCanvas(canvasInstance);
 
