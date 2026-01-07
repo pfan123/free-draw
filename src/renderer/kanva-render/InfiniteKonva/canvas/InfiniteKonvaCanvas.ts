@@ -506,9 +506,6 @@ export class InfiniteKonvaCanvas {
     // 开始性能监控
     const renderStart = performance.now();
 
-    // 批量绘制开始
-    // this.stage.batchDrawStart();
-
     // 更新网格
     const viewport = this.viewportManager.getViewport();
     this.gridSystem.update(viewport);
@@ -520,7 +517,7 @@ export class InfiniteKonvaCanvas {
     this.renderOverlay();
 
     // 批量绘制结束
-    // this.stage.batchDrawEnd();
+    this.stage.draw();
 
     // 记录渲染时间
     const renderTime = performance.now() - renderStart;
@@ -667,46 +664,3 @@ export class InfiniteKonvaCanvas {
     document.removeEventListener("keydown", this.handleKeyboard.bind(this));
   }
 }
-
-// // 使用示例
-// const canvas = new InfiniteKonvaCanvas({
-//   containerId: "canvas-container",
-//   viewport: {
-//     minZoom: 0.1,
-//     maxZoom: 20,
-//     defaultZoom: 1,
-//   },
-//   grid: {
-//     enabled: true,
-//     size: 50,
-//     color: "#e0e0e0",
-//   },
-//   performance: {
-//     targetFPS: 60,
-//     lodEnabled: true,
-//     showStats: true,
-//   },
-// });
-
-// // 添加测试对象
-// canvas.addObject({
-//   id: "test-rect",
-//   type: "rectangle",
-//   position: { x: 100, y: 100 },
-//   size: { x: 200, y: 150 },
-//   style: {
-//     fill: "#4CAF50",
-//     stroke: { color: "#2E7D32", width: 2 },
-//   },
-//   properties: { cornerRadius: 10 },
-//   metadata: {
-//     createdAt: Date.now(),
-//     updatedAt: Date.now(),
-//     createdBy: "system",
-//     version: 1,
-//   },
-// });
-
-// // 获取性能统计
-// const stats = canvas.getPerformanceStats();
-// console.log("Performance stats:", stats);

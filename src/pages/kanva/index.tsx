@@ -13,11 +13,8 @@ const App = () => {
     // 1. 创建画布实例
     const canvasInstance = new InfiniteKonvaCanvas({
       container: containerRef.current!,
-      // config: {
-      //   grid: { enabled: true, size: 50 },
-      //   snapToGrid: true,
-      //   performance: { targetFPS: 60 },
-      // },
+      grid: { enabled: true, size: 10 },
+      performance: { targetFPS: 60 },
     });
 
     canvasInstance.addObject({
@@ -47,7 +44,7 @@ const App = () => {
     setCanvas(canvasInstance);
 
     return () => {
-      // renderer.dispose();
+      // canvasInstance.destroy();
     };
   }, []);
 
