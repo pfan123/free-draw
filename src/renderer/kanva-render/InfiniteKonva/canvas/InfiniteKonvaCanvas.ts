@@ -156,11 +156,12 @@ export class InfiniteKonvaCanvas {
     );
 
     // 4. 事件系统
-    // this.eventSystem = new EventSystem(
-    //   this.stage,
-    //   this.chunkedCanvas.getWorldGroup(),
-    //   this.config.events
-    // );
+    this.eventSystem = new EventSystem(
+      this.stage,
+      // this.chunkedCanvas.getWorldGroup(),
+      this.mainLayer,
+      this.config.events
+    );
 
     // 5. 内存管理器
     this.memoryManager = new MemoryManager(this.config.memory);
@@ -238,16 +239,21 @@ export class InfiniteKonvaCanvas {
       this.state.viewport = data.viewport;
     });
 
-    // // 事件系统处理用户交互
-    // this.eventSystem.on("dragmove", (event) => {
-    //   // 更新视口位置
-    //   this.viewportManager.handleDrag(event);
-    // });
+    // 事件系统处理用户交互
+    this.eventSystem.on("dragstart", () => {
+      this.viewportManager.onDragStart();
+    });
+    this.eventSystem.on("dragmove", () => {
+      this.viewportManager.onDragMove();
+    });
+    this.eventSystem.on("dragend", () => {
+      this.viewportManager.onDragEnd();
+    });
 
-    // this.eventSystem.on("wheel", (event) => {
-    //   // 处理缩放
-    //   this.viewportManager.handleZoom(event);
-    // });
+    this.eventSystem.on("wheel", (e) => {
+      console.error("wheel event", e);
+      this.viewportManager.onWheel(e.originalEvent);
+    });
 
     // 开始性能监控
     this.startPerformanceMonitoring.bind(this)();
@@ -332,14 +338,20 @@ export class InfiniteKonvaCanvas {
     // 添加到状态
     this.state.objects.push(object);
 
+    this.objectRenderer.renderToLayer(
+      this.state.objects,
+      this.mainLayer,
+      this.state.viewport
+    );
+
     // 添加到数据源
     await this.dataSource.saveObject(object);
 
-    // 确定对象所在的分块
-    const chunkId = this.getChunkIdForObject(object);
+    // // 确定对象所在的分块
+    // const chunkId = this.getChunkIdForObject(object);
 
-    // 通知分块画布更新
-    this.chunkedCanvas.addObjectToChunk(chunkId, object);
+    // // 通知分块画布更新
+    // this.chunkedCanvas.addObjectToChunk(chunkId, object);
 
     // 注册对象到内存管理器
     this.memoryManager.registerObject(object, "canvas-object");

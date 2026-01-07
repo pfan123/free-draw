@@ -18,15 +18,15 @@ const App = () => {
     });
 
     canvasInstance.addObject({
-      id: "test-rect",
+      id: "test1",
       type: "rectangle",
-      position: { x: 100, y: 100 },
+      position: { x: 400, y: 400 },
       size: { x: 200, y: 150 },
       rotation: 0,
       scale: { x: 1, y: 1 },
       zIndex: 0,
       style: {
-        fill: "#4CAF50",
+        fill: "#af6a4cff",
         stroke: { color: "#2E7D32", width: 2 },
       },
       properties: { cornerRadius: 10 },
